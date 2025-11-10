@@ -2,33 +2,31 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 
+/* -------------------------
+   Config / Coordinates
+-------------------------- */
+
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
 
-// Single-slot inventory comes in Phase 8, but scaffold Player now
+/* -------------------------
+   Player + HUD
+-------------------------- */
+
 type Player = {
   lat: number;
   lng: number;
-  holding: number | null; // will be used in D3.a inventory/crafting
+  holding: number | null; // used later for inventory
 };
 
 let player: Player = { ...classroom, holding: null };
 
-// Leaflet references
 let map: L.Map;
 let playerMarker: L.CircleMarker;
-
-let gridLayer: L.LayerGroup | null = null;
-// Small HUD showing player state (holding will be useful later)
 let hudEl: HTMLDivElement;
 
-// Size of each rectilinear lat-lng grid cell (≈ a house)
-const CELL = 0.0001;
-
-// Discrete cell index from any lat/lng (integer grid)
-type CellId = { i: number; j: number };
-
-// Keep a reference so we can replace/redraw later
-let oneCellRect: L.Rectangle | null = null;
+/* -------------------------
+   DOM helpers (no HTML edits)
+-------------------------- */
 
 function ensureMapContainer(): HTMLElement {
   const existing = document.getElementById("app") ||
@@ -55,8 +53,12 @@ function ensureHUD(): HTMLDivElement {
 function renderHUD() {
   hudEl.textContent = `Player @ (${player.lat.toFixed(5)}, ${
     player.lng.toFixed(5)
-  })  |  Holding: ${player.holding ?? "—"}`;
+  }) | Holding: ${player.holding ?? "—"}`;
 }
+
+/* -------------------------
+   Map + Marker
+-------------------------- */
 
 function createPlayerMarker() {
   playerMarker = L.circleMarker([player.lat, player.lng], {
@@ -68,6 +70,110 @@ function createPlayerMarker() {
 function updatePlayerMarker() {
   playerMarker.setLatLng([player.lat, player.lng]);
 }
+
+/* -------------------------
+   Grid math (Phases 4–5)
+-------------------------- */
+
+const CELL = 0.0001; // ≈ a house, in degrees
+
+type CellId = { i: number; j: number };
+
+function _toCellId(lat: number, lng: number): CellId {
+  return {
+    i: Math.floor(lat / CELL),
+    j: Math.floor(lng / CELL),
+  };
+}
+
+function cellCenter(i: number, j: number): [number, number] {
+  return [(i + 0.5) * CELL, (j + 0.5) * CELL];
+}
+
+/* -------------------------
+   Deterministic spawn (Phase 6)
+-------------------------- */
+
+// Stable hash → [0,1)
+function prng01(i: number, j: number): number {
+  let x = (i * 73856093) ^ (j * 19349663);
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  return (x >>> 0) / 0xffffffff;
+}
+
+// 0 = empty; otherwise token value
+function tokenAt(i: number, j: number): number {
+  const r = prng01(i, j);
+  if (r < 0.15) return 2; // 15% chance
+  if (r < 0.20) return 4; // 5% chance
+  return 0;
+}
+
+/* -------------------------
+   Grid rendering (Phase 5 + labels Phase 6)
+-------------------------- */
+
+let gridLayer: L.LayerGroup | null = null;
+let tokenLayer: L.LayerGroup | null = null;
+
+function visibleCellRange() {
+  const b = map.getBounds();
+  const iMin = Math.floor(b.getSouth() / CELL);
+  const iMax = Math.ceil(b.getNorth() / CELL);
+  const jMin = Math.floor(b.getWest() / CELL);
+  const jMax = Math.ceil(b.getEast() / CELL);
+  return { iMin, iMax, jMin, jMax };
+}
+
+function drawGrid() {
+  if (!map) return;
+
+  if (!gridLayer) gridLayer = L.layerGroup().addTo(map);
+  else gridLayer.clearLayers();
+
+  if (!tokenLayer) tokenLayer = L.layerGroup().addTo(map);
+  else tokenLayer.clearLayers();
+
+  const { iMin, iMax, jMin, jMax } = visibleCellRange();
+
+  const MAX_CELLS = 8000; // safety cap
+  let count = 0;
+
+  for (let i = iMin; i < iMax; i++) {
+    for (let j = jMin; j < jMax; j++) {
+      if (++count > MAX_CELLS) return;
+
+      const south = i * CELL;
+      const west = j * CELL;
+      const north = (i + 1) * CELL;
+      const east = (j + 1) * CELL;
+
+      // thin cell outline
+      L.rectangle([[south, west], [north, east]], {
+        weight: 1,
+        opacity: 0.5,
+      }).addTo(gridLayer);
+
+      // token label (visible contents)
+      const val = tokenAt(i, j);
+      if (val > 0) {
+        const [clat, clng] = cellCenter(i, j);
+        const icon = L.divIcon({
+          className: "token-label",
+          html: String(val),
+          iconSize: [0, 0],
+        });
+        L.marker([clat, clng], { icon }).addTo(tokenLayer);
+      }
+    }
+  }
+}
+
+/* -------------------------
+   Init
+-------------------------- */
 
 function init() {
   const container = ensureMapContainer();
@@ -83,119 +189,37 @@ function init() {
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
 
-  drawGrid();
-
-  // Redraw whenever the map view changes
-  map.on("zoomend", drawGrid);
-  map.on("moveend", drawGrid);
-  map.on("resize", drawGrid);
   createPlayerMarker();
   renderHUD();
 
+  // initial draw + redraw on view changes
+  drawGrid();
+  map.on("zoomend", drawGrid);
+  map.on("moveend", drawGrid);
+  map.on("resize", drawGrid);
+
+  // (optional) click to re-center camera on player while devving
   map.on("click", () => map.setView([player.lat, player.lng]));
 }
 
-// DOM ready
 if (document.readyState === "loading") {
   globalThis.addEventListener("DOMContentLoaded", init);
 } else {
   init();
 }
 
-// ---------------------------------------------------
-// Dev helper (optional): a function to move player for testing Phase 3.
-// Call this in the console: movePlayerBy(0.0001, 0)
-// ---------------------------------------------------
-(globalThis as typeof globalThis & {
-  movePlayerBy?: (dLat?: number, dLng?: number) => void;
-}).movePlayerBy = (dLat = 0, dLng = 0) => {
-  player = { ...player, lat: player.lat + dLat, lng: player.lng + dLng };
-  updatePlayerMarker();
-  renderHUD();
-  map.setView([player.lat, player.lng]); // keep camera on player
-};
-
-function toCellId(lat: number, lng: number): CellId {
-  return {
-    i: Math.floor(lat / CELL),
-    j: Math.floor(lng / CELL),
-  };
-}
-
-// Bounds (southWest -> northEast) of a given cell in lat/lng
-function cellBounds(id: CellId): [[number, number], [number, number]] {
-  const south = id.i * CELL;
-  const west = id.j * CELL;
-  const north = (id.i + 1) * CELL;
-  const east = (id.j + 1) * CELL;
-  return [[south, west], [north, east]];
-}
-
-function drawPlayersCell() {
-  const id = toCellId(player.lat, player.lng);
-  const bounds = cellBounds(id);
-  if (oneCellRect) {
-    map.removeLayer(oneCellRect);
-  }
-
-  oneCellRect = L.rectangle(bounds, {
-    weight: 2,
-  }).addTo(map);
-}
-
-// call once on init and whenever player moves (dev helper already moves the player)
-drawPlayersCell();
+/* -------------------------
+   Dev helper: move player in console
+   Usage: movePlayerBy(0.0001, 0)
+-------------------------- */
 
 type MovePlayerFn = (dLat?: number, dLng?: number) => void;
-const _origMove =
-  (globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
-    .movePlayerBy;
 
 (globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
   .movePlayerBy = (dLat = 0, dLng = 0) => {
-    _origMove?.(dLat, dLng); // call original helper
-    drawPlayersCell(); // redraw cell outline when player moves
+    player = { ...player, lat: player.lat + dLat, lng: player.lng + dLng };
+    updatePlayerMarker();
+    renderHUD();
+    map.setView([player.lat, player.lng]);
+    drawGrid(); // keep grid/labels consistent with viewport
   };
-
-function visibleCellRange() {
-  const b = map.getBounds(); // south, west, north, east
-  const iMin = Math.floor(b.getSouth() / CELL);
-  const iMax = Math.ceil(b.getNorth() / CELL);
-  const jMin = Math.floor(b.getWest() / CELL);
-  const jMax = Math.ceil(b.getEast() / CELL);
-  return { iMin, iMax, jMin, jMax };
-}
-
-// Draw thin rectangles for every visible cell
-function drawGrid() {
-  if (!map) return;
-
-  if (!gridLayer) {
-    gridLayer = L.layerGroup().addTo(map);
-  } else {
-    gridLayer.clearLayers();
-  }
-
-  const { iMin, iMax, jMin, jMax } = visibleCellRange();
-
-  // Safety cap to avoid accidental huge loops if something goes wrong
-  const MAX_CELLS = 8000;
-  let count = 0;
-
-  for (let i = iMin; i < iMax; i++) {
-    for (let j = jMin; j < jMax; j++) {
-      // bail out if extreme zoom-out
-      if (++count > MAX_CELLS) return;
-
-      const south = i * CELL;
-      const west = j * CELL;
-      const north = (i + 1) * CELL;
-      const east = (j + 1) * CELL;
-
-      L.rectangle([[south, west], [north, east]], {
-        weight: 1,
-        opacity: 0.6,
-      }).addTo(gridLayer);
-    }
-  }
-}

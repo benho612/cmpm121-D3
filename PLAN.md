@@ -27,7 +27,7 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] show which cells contain tokens
 - [x] implement cell math + draw one cell
 - [x] render a full grid covering the viewport
-- [ ] deterministic token spawn function
+- [x] deterministic token spawn function
 - [ ] enforce nearby-only interaction
 - [ ] single-slot inventory & pickup
 - [ ] merge equal→double + win check
