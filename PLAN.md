@@ -25,4 +25,11 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [ ] draw a player marker
 - [ ] render a grid of cells on the map
 - [ ] show which cells contain tokens
-- [ ] allow clicking cells to collect or merge tokens
+- [ ] implement cell math + draw one cell
+- [ ] render a full grid covering the viewport
+- [ ] deterministic token spawn function
+- [ ] enforce nearby-only interaction
+- [ ] single-slot inventory & pickup
+- [ ] merge equal→double + win check
+- [ ] cleanup-only commit
+- [ ] (D3.a complete) commit
