@@ -22,7 +22,7 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] copy main.ts to reference.ts
 - [x] delete everything in main.ts
 - [x] display a basic Leaflet map centered at classroom location
-- [ ] draw a player marker
+- [x] draw a player marker
 - [ ] render a grid of cells on the map
 - [ ] show which cells contain tokens
 - [ ] implement cell math + draw one cell
