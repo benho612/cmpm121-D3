@@ -24,6 +24,15 @@ let playerMarker: L.CircleMarker;
 // Small HUD showing player state (holding will be useful later)
 let hudEl: HTMLDivElement;
 
+// Size of each rectilinear lat-lng grid cell (≈ a house)
+const CELL = 0.0001;
+
+// Discrete cell index from any lat/lng (integer grid)
+type CellId = { i: number; j: number };
+
+// Keep a reference so we can replace/redraw later
+let oneCellRect: L.Rectangle | null = null;
+
 function ensureMapContainer(): HTMLElement {
   const existing = document.getElementById("app") ||
     document.getElementById("root") ||
@@ -105,3 +114,47 @@ if (document.readyState === "loading") {
   renderHUD();
   map.setView([player.lat, player.lng]); // keep camera on player
 };
+
+function toCellId(lat: number, lng: number): CellId {
+  return {
+    i: Math.floor(lat / CELL),
+    j: Math.floor(lng / CELL),
+  };
+}
+
+// Bounds (southWest -> northEast) of a given cell in lat/lng
+function cellBounds(id: CellId): [[number, number], [number, number]] {
+  const south = id.i * CELL;
+  const west = id.j * CELL;
+  const north = (id.i + 1) * CELL;
+  const east = (id.j + 1) * CELL;
+  return [[south, west], [north, east]];
+}
+
+function drawPlayersCell() {
+  const id = toCellId(player.lat, player.lng);
+  const bounds = cellBounds(id);
+
+  // remove previous
+  if (oneCellRect) {
+    map.removeLayer(oneCellRect);
+  }
+
+  oneCellRect = L.rectangle(bounds, {
+    weight: 2,
+  }).addTo(map);
+}
+
+// call once on init and whenever player moves (dev helper already moves the player)
+drawPlayersCell();
+
+type MovePlayerFn = (dLat?: number, dLng?: number) => void;
+const _origMove =
+  (globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
+    .movePlayerBy;
+
+(globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
+  .movePlayerBy = (dLat = 0, dLng = 0) => {
+    _origMove?.(dLat, dLng); // call original helper
+    drawPlayersCell(); // redraw cell outline when player moves
+  };
