@@ -1,9 +1,11 @@
 # D3: World of Bits
 
 # Game Design Vision
+
 A map-based crafting game where players collect nearby tokens and merge identical ones to form higher-value tokens.
 
 # Technologies
+
 - TypeScript
 - Leaflet
 - Deno + Vite
@@ -12,9 +14,11 @@ A map-based crafting game where players collect nearby tokens and merge identica
 # Assignments
 
 ## D3.a: Core Mechanics
+
 Key technical challenge: assembling a map-based UI using Leaflet.
 
 ### Steps
+
 - [x] copy main.ts to reference.ts
 - [x] delete everything in main.ts
 - [ ] display a basic Leaflet map centered at classroom location
