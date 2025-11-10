@@ -24,7 +24,6 @@ The prototype implements the **core mechanics** of the final game:
 - Displays an interactive Leaflet map centered at UCSC.
 - Renders a grid of cells covering the visible area.
 - Shows token values (`2`, `4`, `8`) using deterministic spawning via the `luck()` function.
-- Player marker updates in real time.
 - Player can **move with arrow keys or WASD**.
 - Can **pick up nearby tokens** (within 3 cells).
 - Can **merge identical tokens** to form a doubled value (e.g., `2 + 2 = 4`).
