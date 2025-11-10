@@ -1,10 +1,14 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import luck from "./_luck.ts";
 import "./style.css";
 
 /* -------------------- Config / Coordinates -------------------- */
 
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
+const CELL = 0.0001; // grid cell size in degrees
+const INTERACT_STEPS = 3; // how many cells away counts as "near"
+const WIN = 16; // win threshold (holding >= WIN)
 
 /* -------------------- Player / HUD -------------------- */
 
@@ -49,6 +53,12 @@ function renderHUD() {
   }) | Holding: ${player.holding ?? "—"}`;
 }
 
+function checkWin() {
+  if (player.holding !== null && player.holding >= WIN) {
+    alert(`You win! Holding ${player.holding}.`);
+  }
+}
+
 /* -------------------- Map / Marker -------------------- */
 
 function createPlayerMarker() {
@@ -64,83 +74,15 @@ function updatePlayerMarker() {
 
 /* -------------------- Grid Math -------------------- */
 
-const CELL = 0.0001;
 type CellId = { i: number; j: number };
 
 function toCellId(lat: number, lng: number): CellId {
   return { i: Math.floor(lat / CELL), j: Math.floor(lng / CELL) };
 }
+
 function cellCenter(i: number, j: number): [number, number] {
   return [(i + 0.5) * CELL, (j + 0.5) * CELL];
 }
-
-/* -------------------- Deterministic Spawn -------------------- */
-
-function prng01(i: number, j: number): number {
-  let x = (i * 73856093) ^ (j * 19349663);
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  return (x >>> 0) / 0xffffffff;
-}
-function tokenAt(i: number, j: number): number {
-  const r = prng01(i, j);
-  if (r < 0.15) return 2;
-  if (r < 0.2) return 4;
-  return 0;
-}
-
-/* -------------------- Nearby Logic -------------------- */
-
-const INTERACT_STEPS = 3;
-function playerCellId(): CellId {
-  return toCellId(player.lat, player.lng);
-}
-function isNearCell(i: number, j: number): boolean {
-  const p = playerCellId();
-  return Math.abs(i - p.i) <= INTERACT_STEPS &&
-    Math.abs(j - p.j) <= INTERACT_STEPS;
-}
-
-/* -------------------- Game State (Inventory / Taken Cells) -------------------- */
-
-const takenCells = new Set<string>(); // "i,j" keys of emptied cells
-
-function cellKey(i: number, j: number) {
-  return `${i},${j}`;
-}
-
-/* -------------------- Interaction -------------------- */
-
-function onCellClick(i: number, j: number) {
-  if (!isNearCell(i, j)) return; // too far
-  const key = cellKey(i, j);
-  const val = tokenAt(i, j);
-
-  // if cell already emptied, skip
-  if (takenCells.has(key)) {
-    console.log("This cell is already empty.");
-    return;
-  }
-
-  // if player empty-handed and cell has token → pick up
-  if (player.holding === null && val > 0) {
-    player.holding = val;
-    takenCells.add(key);
-    console.log(`Picked up token ${val} from cell [${i},${j}]`);
-    renderHUD();
-    drawGrid(); // refresh visible tokens
-    return;
-  }
-
-  // later (Phase 9) we’ll handle placing/merging here
-  console.log("Nothing to pick up or already holding a token.");
-}
-
-/* -------------------- Grid Rendering -------------------- */
-
-let gridLayer: L.LayerGroup | null = null;
-let tokenLayer: L.LayerGroup | null = null;
 
 function visibleCellRange() {
   const b = map.getBounds();
@@ -151,10 +93,100 @@ function visibleCellRange() {
   return { iMin, iMax, jMin, jMax };
 }
 
+/* -------------------- Deterministic Spawn -------------------- */
+
+function tokenAt(i: number, j: number): number {
+  const r = luck(`${i},${j}`);
+  if (r < 0.15) return 2; // 15% chance
+  if (r < 0.20) return 4; // 5% chance
+  if (r < 0.22) return 8; // 2% chance
+  return 0;
+}
+
+/* -------------------- Game State (Taken / Modified) -------------------- */
+/* We track cells the player has changed so draws reflect gameplay. */
+
+const takenCells = new Set<string>(); // cells emptied by pickups
+const modifiedCells = new Map<string, number>(); // cells whose value changed (e.g., merges)
+
+function cellKey(i: number, j: number) {
+  return `${i},${j}`;
+}
+
+function getCellValue(i: number, j: number): number {
+  const key = cellKey(i, j);
+  if (modifiedCells.has(key)) return modifiedCells.get(key)!;
+  if (takenCells.has(key)) return 0;
+  return tokenAt(i, j);
+}
+
+function setCellValue(i: number, j: number, value: number) {
+  const key = cellKey(i, j);
+  if (value <= 0) {
+    modifiedCells.delete(key);
+    takenCells.add(key); // mark as empty
+  } else {
+    takenCells.delete(key);
+    modifiedCells.set(key, value);
+  }
+}
+
+/* -------------------- Nearby Logic -------------------- */
+
+function playerCellId(): CellId {
+  return toCellId(player.lat, player.lng);
+}
+
+function isNearCell(i: number, j: number): boolean {
+  const p = playerCellId();
+  return Math.abs(i - p.i) <= INTERACT_STEPS &&
+    Math.abs(j - p.j) <= INTERACT_STEPS;
+}
+
+/* -------------------- Interaction (Pickup / Merge) -------------------- */
+
+function onCellClick(i: number, j: number) {
+  if (!isNearCell(i, j)) return;
+
+  const current = getCellValue(i, j);
+
+  // If empty-handed and cell has a token → pick up
+  if (player.holding === null) {
+    if (current > 0) {
+      player.holding = current;
+      setCellValue(i, j, 0); // remove token from cell
+      renderHUD();
+      checkWin();
+      drawGrid();
+    }
+    return;
+  }
+
+  // If holding a token and the cell has equal value → merge to double in the cell
+  if (current === player.holding && current > 0) {
+    const doubled = current * 2;
+    setCellValue(i, j, doubled); // new value lives in the cell
+    player.holding = null; // hand is now empty
+    renderHUD();
+    drawGrid();
+    // Note: win only triggers when holding >= WIN, so player must pick up the doubled token later
+    return;
+  }
+
+  // Otherwise, do nothing (strict D3.a: no placing into empty or different-valued cells)
+}
+
+/* -------------------- Rendering (Grid + Tokens) -------------------- */
+
+let gridLayer: L.LayerGroup | null = null;
+let tokenLayer: L.LayerGroup | null = null;
+
 function drawGrid() {
   if (!map) return;
+
   if (!gridLayer) gridLayer = L.layerGroup().addTo(map);
   else gridLayer.clearLayers();
+
   if (!tokenLayer) tokenLayer = L.layerGroup().addTo(map);
   else tokenLayer.clearLayers();
 
@@ -165,6 +197,7 @@ function drawGrid() {
   for (let i = iMin; i < iMax; i++) {
     for (let j = jMin; j < jMax; j++) {
       if (++count > MAX_CELLS) return;
+
       const south = i * CELL;
       const west = j * CELL;
       const north = (i + 1) * CELL;
@@ -176,13 +209,9 @@ function drawGrid() {
         color: near ? "#2a7a5e" : "#666",
         opacity: near ? 0.9 : 0.4,
       }).addTo(gridLayer);
-
       rect.on("click", () => onCellClick(i, j));
 
-      const key = cellKey(i, j);
-      if (takenCells.has(key)) continue; // hide emptied cells
-
-      const val = tokenAt(i, j);
+      const val = getCellValue(i, j);
       if (val > 0) {
         const [clat, clng] = cellCenter(i, j);
         const icon = L.divIcon({
