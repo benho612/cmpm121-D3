@@ -24,9 +24,9 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] display a basic Leaflet map centered at classroom location
 - [x] draw a player marker
 - [x] render a grid of cells on the map
-- [ ] show which cells contain tokens
-- [ ] implement cell math + draw one cell
-- [ ] render a full grid covering the viewport
+- [x] show which cells contain tokens
+- [x] implement cell math + draw one cell
+- [x] render a full grid covering the viewport
 - [ ] deterministic token spawn function
 - [ ] enforce nearby-only interaction
 - [ ] single-slot inventory & pickup

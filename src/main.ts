@@ -2,10 +2,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 
-// ---------------------------------------------------
-// Phase 3: Player object + marker + simple HUD
-// ---------------------------------------------------
-
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
 
 // Single-slot inventory comes in Phase 8, but scaffold Player now
@@ -21,6 +17,7 @@ let player: Player = { ...classroom, holding: null };
 let map: L.Map;
 let playerMarker: L.CircleMarker;
 
+let gridLayer: L.LayerGroup | null = null;
 // Small HUD showing player state (holding will be useful later)
 let hudEl: HTMLDivElement;
 
@@ -62,7 +59,6 @@ function renderHUD() {
 }
 
 function createPlayerMarker() {
-  // Use a dedicated marker we can move later
   playerMarker = L.circleMarker([player.lat, player.lng], {
     radius: 8,
     weight: 2,
@@ -87,11 +83,15 @@ function init() {
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
 
+  drawGrid();
+
+  // Redraw whenever the map view changes
+  map.on("zoomend", drawGrid);
+  map.on("moveend", drawGrid);
+  map.on("resize", drawGrid);
   createPlayerMarker();
   renderHUD();
 
-  // (Optional) quick test: click to re-center map on the player
-  // (This is just for convenience while developing)
   map.on("click", () => map.setView([player.lat, player.lng]));
 }
 
@@ -134,8 +134,6 @@ function cellBounds(id: CellId): [[number, number], [number, number]] {
 function drawPlayersCell() {
   const id = toCellId(player.lat, player.lng);
   const bounds = cellBounds(id);
-
-  // remove previous
   if (oneCellRect) {
     map.removeLayer(oneCellRect);
   }
@@ -158,3 +156,46 @@ const _origMove =
     _origMove?.(dLat, dLng); // call original helper
     drawPlayersCell(); // redraw cell outline when player moves
   };
+
+function visibleCellRange() {
+  const b = map.getBounds(); // south, west, north, east
+  const iMin = Math.floor(b.getSouth() / CELL);
+  const iMax = Math.ceil(b.getNorth() / CELL);
+  const jMin = Math.floor(b.getWest() / CELL);
+  const jMax = Math.ceil(b.getEast() / CELL);
+  return { iMin, iMax, jMin, jMax };
+}
+
+// Draw thin rectangles for every visible cell
+function drawGrid() {
+  if (!map) return;
+
+  if (!gridLayer) {
+    gridLayer = L.layerGroup().addTo(map);
+  } else {
+    gridLayer.clearLayers();
+  }
+
+  const { iMin, iMax, jMin, jMax } = visibleCellRange();
+
+  // Safety cap to avoid accidental huge loops if something goes wrong
+  const MAX_CELLS = 8000;
+  let count = 0;
+
+  for (let i = iMin; i < iMax; i++) {
+    for (let j = jMin; j < jMax; j++) {
+      // bail out if extreme zoom-out
+      if (++count > MAX_CELLS) return;
+
+      const south = i * CELL;
+      const west = j * CELL;
+      const north = (i + 1) * CELL;
+      const east = (j + 1) * CELL;
+
+      L.rectangle([[south, west], [north, east]], {
+        weight: 1,
+        opacity: 0.6,
+      }).addTo(gridLayer);
+    }
+  }
+}
