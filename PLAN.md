@@ -29,7 +29,6 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] render a full grid covering the viewport
 - [x] deterministic token spawn function
 - [x] enforce nearby-only interaction
-- [ ] single-slot inventory & pickup
+- [x] single-slot inventory & pickup
 - [ ] merge equal→double + win check
-- [ ] cleanup-only commit
 - [ ] (D3.a complete) commit
