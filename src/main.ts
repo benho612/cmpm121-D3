@@ -2,20 +2,16 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 
-/* -------------------------
-   Config / Coordinates
--------------------------- */
+/* -------------------- Config / Coordinates -------------------- */
 
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
 
-/* -------------------------
-   Player + HUD
--------------------------- */
+/* -------------------- Player / HUD -------------------- */
 
 type Player = {
   lat: number;
   lng: number;
-  holding: number | null; // used later for inventory
+  holding: number | null;
 };
 
 let player: Player = { ...classroom, holding: null };
@@ -23,10 +19,6 @@ let player: Player = { ...classroom, holding: null };
 let map: L.Map;
 let playerMarker: L.CircleMarker;
 let hudEl: HTMLDivElement;
-
-/* -------------------------
-   DOM helpers (no HTML edits)
--------------------------- */
 
 function ensureMapContainer(): HTMLElement {
   const existing = document.getElementById("app") ||
@@ -52,13 +44,13 @@ function ensureHUD(): HTMLDivElement {
 
 function renderHUD() {
   hudEl.textContent = `Player @ (${player.lat.toFixed(5)}, ${
-    player.lng.toFixed(5)
+    player.lng.toFixed(
+      5,
+    )
   }) | Holding: ${player.holding ?? "—"}`;
 }
 
-/* -------------------------
-   Map + Marker
--------------------------- */
+/* -------------------- Map / Marker -------------------- */
 
 function createPlayerMarker() {
   playerMarker = L.circleMarker([player.lat, player.lng], {
@@ -71,30 +63,21 @@ function updatePlayerMarker() {
   playerMarker.setLatLng([player.lat, player.lng]);
 }
 
-/* -------------------------
-   Grid math (Phases 4–5)
--------------------------- */
+/* -------------------- Grid Math -------------------- */
 
-const CELL = 0.0001; // ≈ a house, in degrees
-
+const CELL = 0.0001;
 type CellId = { i: number; j: number };
 
-function _toCellId(lat: number, lng: number): CellId {
-  return {
-    i: Math.floor(lat / CELL),
-    j: Math.floor(lng / CELL),
-  };
+function toCellId(lat: number, lng: number): CellId {
+  return { i: Math.floor(lat / CELL), j: Math.floor(lng / CELL) };
 }
 
 function cellCenter(i: number, j: number): [number, number] {
   return [(i + 0.5) * CELL, (j + 0.5) * CELL];
 }
 
-/* -------------------------
-   Deterministic spawn (Phase 6)
--------------------------- */
+/* -------------------- Deterministic Spawn -------------------- */
 
-// Stable hash → [0,1)
 function prng01(i: number, j: number): number {
   let x = (i * 73856093) ^ (j * 19349663);
   x ^= x << 13;
@@ -103,17 +86,37 @@ function prng01(i: number, j: number): number {
   return (x >>> 0) / 0xffffffff;
 }
 
-// 0 = empty; otherwise token value
 function tokenAt(i: number, j: number): number {
   const r = prng01(i, j);
-  if (r < 0.15) return 2; // 15% chance
-  if (r < 0.20) return 4; // 5% chance
+  if (r < 0.15) return 2;
+  if (r < 0.2) return 4;
   return 0;
 }
 
-/* -------------------------
-   Grid rendering (Phase 5 + labels Phase 6)
--------------------------- */
+/* -------------------- Nearby Logic -------------------- */
+
+const INTERACT_STEPS = 3;
+
+function playerCellId(): CellId {
+  return toCellId(player.lat, player.lng);
+}
+
+function isNearCell(i: number, j: number): boolean {
+  const p = playerCellId();
+  return Math.abs(i - p.i) <= INTERACT_STEPS &&
+    Math.abs(j - p.j) <= INTERACT_STEPS;
+}
+
+function onCellClick(i: number, j: number) {
+  if (!isNearCell(i, j)) {
+    console.log("Too far to interact with this cell.");
+    return;
+  }
+  const val = tokenAt(i, j);
+  console.log(`Interact with NEAR cell [${i},${j}] → token=${val}`);
+}
+
+/* -------------------- Grid Rendering -------------------- */
 
 let gridLayer: L.LayerGroup | null = null;
 let tokenLayer: L.LayerGroup | null = null;
@@ -137,8 +140,7 @@ function drawGrid() {
   else tokenLayer.clearLayers();
 
   const { iMin, iMax, jMin, jMax } = visibleCellRange();
-
-  const MAX_CELLS = 8000; // safety cap
+  const MAX_CELLS = 8000;
   let count = 0;
 
   for (let i = iMin; i < iMax; i++) {
@@ -150,18 +152,21 @@ function drawGrid() {
       const north = (i + 1) * CELL;
       const east = (j + 1) * CELL;
 
-      // thin cell outline
-      L.rectangle([[south, west], [north, east]], {
-        weight: 1,
-        opacity: 0.5,
+      const near = isNearCell(i, j);
+
+      const rect = L.rectangle([[south, west], [north, east]], {
+        weight: near ? 2 : 1,
+        color: near ? "#2a7a5e" : "#666",
+        opacity: near ? 0.9 : 0.4,
       }).addTo(gridLayer);
 
-      // token label (visible contents)
+      rect.on("click", () => onCellClick(i, j));
+
       const val = tokenAt(i, j);
       if (val > 0) {
         const [clat, clng] = cellCenter(i, j);
         const icon = L.divIcon({
-          className: "token-label",
+          className: near ? "token-label" : "token-label token-far",
           html: String(val),
           iconSize: [0, 0],
         });
@@ -171,18 +176,16 @@ function drawGrid() {
   }
 }
 
-/* -------------------------
-   Init
--------------------------- */
+/* -------------------- Init -------------------- */
 
 function init() {
   const container = ensureMapContainer();
   hudEl = ensureHUD();
 
-  map = L.map(container, {
-    zoomControl: true,
-    preferCanvas: true,
-  }).setView([player.lat, player.lng], 18);
+  map = L.map(container, { zoomControl: true, preferCanvas: true }).setView(
+    [player.lat, player.lng],
+    18,
+  );
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 20,
@@ -192,13 +195,10 @@ function init() {
   createPlayerMarker();
   renderHUD();
 
-  // initial draw + redraw on view changes
   drawGrid();
   map.on("zoomend", drawGrid);
   map.on("moveend", drawGrid);
   map.on("resize", drawGrid);
-
-  // (optional) click to re-center camera on player while devving
   map.on("click", () => map.setView([player.lat, player.lng]));
 }
 
@@ -208,18 +208,18 @@ if (document.readyState === "loading") {
   init();
 }
 
-/* -------------------------
-   Dev helper: move player in console
-   Usage: movePlayerBy(0.0001, 0)
--------------------------- */
+/* -------------------- Dev Helper -------------------- */
 
 type MovePlayerFn = (dLat?: number, dLng?: number) => void;
 
 (globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
-  .movePlayerBy = (dLat = 0, dLng = 0) => {
+  .movePlayerBy = (
+    dLat = 0,
+    dLng = 0,
+  ) => {
     player = { ...player, lat: player.lat + dLat, lng: player.lng + dLng };
     updatePlayerMarker();
     renderHUD();
     map.setView([player.lat, player.lng]);
-    drawGrid(); // keep grid/labels consistent with viewport
+    drawGrid();
   };
