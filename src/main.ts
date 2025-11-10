@@ -271,3 +271,36 @@ type MovePlayerFn = (dLat?: number, dLng?: number) => void;
     map.setView([player.lat, player.lng]);
     drawGrid();
   };
+
+/* -------------------- Keyboard Controls -------------------- */
+
+// how far one key press moves the player (in degrees)
+/* -------------------- Keyboard Controls -------------------- */
+
+const STEP = CELL * 1; // one grid cell per key press
+
+// Define a typed reference to movePlayerBy on globalThis
+const moveBy = (globalThis as typeof globalThis & {
+  movePlayerBy?: (dLat?: number, dLng?: number) => void;
+}).movePlayerBy;
+
+globalThis.addEventListener("keydown", (e) => {
+  switch (e.key) {
+    case "ArrowUp":
+    case "w":
+      moveBy?.(STEP, 0);
+      break;
+    case "ArrowDown":
+    case "s":
+      moveBy?.(-STEP, 0);
+      break;
+    case "ArrowLeft":
+    case "a":
+      moveBy?.(0, -STEP);
+      break;
+    case "ArrowRight":
+    case "d":
+      moveBy?.(0, STEP);
+      break;
+  }
+});
