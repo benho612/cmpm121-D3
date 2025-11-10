@@ -1,6 +1,6 @@
 # 🌍 D3: World of Bits
 
-**CMPM 121 – D3.a: Core Mechanics**
+## D3: World of Bits — Core Mechanics (D3.a)
 
 A map-based crafting game prototype built with **TypeScript**, **Leaflet**.
 Players can explore a map, collect nearby tokens, and merge identical ones into higher-value tokens.
@@ -8,16 +8,19 @@ Players can explore a map, collect nearby tokens, and merge identical ones into 
 ---
 
 ## 🎯 Game Design Vision
+
 > A map-based crafting game where players collect nearby tokens and merge identical ones to form higher-value tokens.
 
-The prototype implements the **core mechanics** of the final game:  
-- deterministic token spawning based on map grid cells  
-- inventory and merging rules  
-- basic movement and interaction system  
+The prototype implements the **core mechanics** of the final game:
+
+- deterministic token spawning based on map grid cells
+- inventory and merging rules
+- basic movement and interaction system
 
 ---
 
 ## 🧩 Features Implemented (D3.a)
+
 - Displays an interactive Leaflet map centered at UCSC.
 - Renders a grid of cells covering the visible area.
 - Shows token values (`2`, `4`, `8`) using deterministic spawning via the `luck()` function.
