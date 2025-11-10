@@ -31,4 +31,3 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] enforce nearby-only interaction
 - [x] single-slot inventory & pickup
 - [x] merge equal→double + win check
-- [ ] (D3.a complete) commit
