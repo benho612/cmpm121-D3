@@ -25,7 +25,6 @@ function ensureMapContainer(): HTMLElement {
     document.getElementById("root") ||
     document.getElementById("map");
   if (existing) return existing;
-
   const div = document.createElement("div");
   div.id = "app";
   document.body.appendChild(div);
@@ -71,7 +70,6 @@ type CellId = { i: number; j: number };
 function toCellId(lat: number, lng: number): CellId {
   return { i: Math.floor(lat / CELL), j: Math.floor(lng / CELL) };
 }
-
 function cellCenter(i: number, j: number): [number, number] {
   return [(i + 0.5) * CELL, (j + 0.5) * CELL];
 }
@@ -85,7 +83,6 @@ function prng01(i: number, j: number): number {
   x ^= x << 5;
   return (x >>> 0) / 0xffffffff;
 }
-
 function tokenAt(i: number, j: number): number {
   const r = prng01(i, j);
   if (r < 0.15) return 2;
@@ -96,24 +93,48 @@ function tokenAt(i: number, j: number): number {
 /* -------------------- Nearby Logic -------------------- */
 
 const INTERACT_STEPS = 3;
-
 function playerCellId(): CellId {
   return toCellId(player.lat, player.lng);
 }
-
 function isNearCell(i: number, j: number): boolean {
   const p = playerCellId();
   return Math.abs(i - p.i) <= INTERACT_STEPS &&
     Math.abs(j - p.j) <= INTERACT_STEPS;
 }
 
+/* -------------------- Game State (Inventory / Taken Cells) -------------------- */
+
+const takenCells = new Set<string>(); // "i,j" keys of emptied cells
+
+function cellKey(i: number, j: number) {
+  return `${i},${j}`;
+}
+
+/* -------------------- Interaction -------------------- */
+
 function onCellClick(i: number, j: number) {
-  if (!isNearCell(i, j)) {
-    console.log("Too far to interact with this cell.");
+  if (!isNearCell(i, j)) return; // too far
+  const key = cellKey(i, j);
+  const val = tokenAt(i, j);
+
+  // if cell already emptied, skip
+  if (takenCells.has(key)) {
+    console.log("This cell is already empty.");
     return;
   }
-  const val = tokenAt(i, j);
-  console.log(`Interact with NEAR cell [${i},${j}] → token=${val}`);
+
+  // if player empty-handed and cell has token → pick up
+  if (player.holding === null && val > 0) {
+    player.holding = val;
+    takenCells.add(key);
+    console.log(`Picked up token ${val} from cell [${i},${j}]`);
+    renderHUD();
+    drawGrid(); // refresh visible tokens
+    return;
+  }
+
+  // later (Phase 9) we’ll handle placing/merging here
+  console.log("Nothing to pick up or already holding a token.");
 }
 
 /* -------------------- Grid Rendering -------------------- */
@@ -132,10 +153,8 @@ function visibleCellRange() {
 
 function drawGrid() {
   if (!map) return;
-
   if (!gridLayer) gridLayer = L.layerGroup().addTo(map);
   else gridLayer.clearLayers();
-
   if (!tokenLayer) tokenLayer = L.layerGroup().addTo(map);
   else tokenLayer.clearLayers();
 
@@ -146,12 +165,10 @@ function drawGrid() {
   for (let i = iMin; i < iMax; i++) {
     for (let j = jMin; j < jMax; j++) {
       if (++count > MAX_CELLS) return;
-
       const south = i * CELL;
       const west = j * CELL;
       const north = (i + 1) * CELL;
       const east = (j + 1) * CELL;
-
       const near = isNearCell(i, j);
 
       const rect = L.rectangle([[south, west], [north, east]], {
@@ -161,6 +178,9 @@ function drawGrid() {
       }).addTo(gridLayer);
 
       rect.on("click", () => onCellClick(i, j));
+
+      const key = cellKey(i, j);
+      if (takenCells.has(key)) continue; // hide emptied cells
 
       const val = tokenAt(i, j);
       if (val > 0) {
@@ -211,7 +231,6 @@ if (document.readyState === "loading") {
 /* -------------------- Dev Helper -------------------- */
 
 type MovePlayerFn = (dLat?: number, dLng?: number) => void;
-
 (globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
   .movePlayerBy = (
     dLat = 0,
