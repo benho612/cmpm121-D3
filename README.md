@@ -31,3 +31,14 @@ The prototype implements the **core mechanics** of the final game:
 - HUD displays position and inventory state.
 
 ---
+
+## D3.b – Globe-Spanning Gameplay
+
+- Grid remains **anchored globally** (world-aligned).
+- **On-screen movement buttons (D-pad)** for one-cell-per-click movement.
+- Player **snaps to the center of each cell** for perfect alignment.
+- **Free map panning/zooming** without moving the player.
+- Grid **repaints dynamically** to cover the full map view.
+- Interaction remains **nearby-only**, respecting distance limits.
+- **Memoryless cells**: world resets when panned/zoomed away (tokens respawn).
+- **Win threshold increased to 32** for higher crafting progression.
