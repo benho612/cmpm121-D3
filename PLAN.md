@@ -17,7 +17,7 @@ A map-based crafting game where players collect nearby tokens and merge identica
 
 Key technical challenge: assembling a map-based UI using Leaflet.
 
-### Steps
+### Steps D3.a
 
 - [x] copy main.ts to reference.ts
 - [x] delete everything in main.ts
@@ -31,3 +31,16 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] enforce nearby-only interaction
 - [x] single-slot inventory & pickup
 - [x] merge equal→double + win check
+
+## D3.b: Globe-spanning Gameplay
+
+### Steps D3.b
+
+- [ ] keep grid anchored to a world coordinate system (Null Island origin, lat=0,lng=0)
+- [ ] keep cells visible to the edge of the map (spawn/despawn on pan/zoom)
+- [ ] add on-screen movement buttons (N/S/E/W) that move one cell per click
+- [ ] allow scrolling the map without moving the player
+- [ ] enforce nearby-only interaction (already implemented; keep it)
+- [ ] make cells “memoryless” once they leave view (tokens can be farmed)
+- [ ] raise crafting target and win threshold (e.g., WIN = 32)
+- [ ] update README and PLAN.md with progress and acceptance checks
