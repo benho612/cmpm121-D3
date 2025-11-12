@@ -39,7 +39,7 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] keep grid anchored to a world coordinate system (Null Island origin)
 - [x] add on-screen movement buttons (N/S/E/W) that move one cell per click
 - [x] allow scrolling the map without moving the player
-- [ ] keep cells visible to the map edge (spawn/despawn on pan/zoom)
+- [x] keep cells visible to the map edge (spawn/despawn on pan/zoom)
 - [ ] enforce nearby-only interaction (confirm + keep)
 - [ ] make cells “memoryless” once they leave view (reset on view change)
 - [ ] raise crafting target and win threshold (WIN = 32)

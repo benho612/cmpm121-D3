@@ -266,10 +266,23 @@ function init() {
   createPlayerMarker();
   renderHUD();
 
-  drawGrid();
-  map.on("zoomend", drawGrid);
-  map.on("moveend", drawGrid);
-  map.on("resize", drawGrid);
+  const repaint = () => drawGrid();
+
+  map.on("zoomend", repaint);
+  map.on("moveend", repaint);
+  map.on("resize", repaint);
+
+  let raf = 0;
+  const preview = () => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      drawGrid();
+    });
+  };
+
+  map.on("move", preview);
+  map.on("zoom", preview);
 
   // D-pad click wiring (move by cell steps)
   document.getElementById("controls")?.addEventListener("click", (ev) => {
