@@ -70,6 +70,11 @@ function renderHUD() {
   }) | Holding: ${player.holding ?? "—"}`;
 }
 
+function clearTransientState() {
+  takenCells.clear();
+  modifiedCells.clear();
+}
+
 function checkWin() {
   if (player.holding !== null && player.holding >= WIN) {
     alert(`You win! Holding ${player.holding}.`);
@@ -267,6 +272,10 @@ function init() {
   renderHUD();
 
   const repaint = () => drawGrid();
+
+  map.on("movestart", clearTransientState);
+  map.on("zoomstart", clearTransientState);
+  map.on("resizestart", clearTransientState);
 
   map.on("zoomend", repaint);
   map.on("moveend", repaint);
