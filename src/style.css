@@ -41,3 +41,31 @@ html, body {
 .token-label.token-far {
   opacity: 0.35;
 }
+
+/* on-screen D-pad */
+#controls {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 36px);
+  grid-auto-rows: 36px;
+  gap: 6px;
+  z-index: 1100;
+  user-select: none;
+}
+#controls .sp {
+  visibility: hidden;
+}
+#controls button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 16px;
+}
+#controls button:hover {
+  filter: brightness(0.95);
+}

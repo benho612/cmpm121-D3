@@ -6,18 +6,13 @@ import "./style.css";
 /* -------------------- Config / Coordinates -------------------- */
 
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
-const CELL = 0.0001; // grid cell size in degrees
+const CELL = 0.0001; // grid cell size in degrees (world-aligned)
 const INTERACT_STEPS = 3; // how many cells away counts as "near"
 const WIN = 16; // win threshold (holding >= WIN)
 
 /* -------------------- Player / HUD -------------------- */
 
-type Player = {
-  lat: number;
-  lng: number;
-  holding: number | null;
-};
-
+type Player = { lat: number; lng: number; holding: number | null };
 let player: Player = { ...classroom, holding: null };
 
 let map: L.Map;
@@ -28,7 +23,7 @@ function ensureMapContainer(): HTMLElement {
   const existing = document.getElementById("app") ||
     document.getElementById("root") ||
     document.getElementById("map");
-  if (existing) return existing;
+  if (existing) return existing as HTMLElement;
   const div = document.createElement("div");
   div.id = "app";
   document.body.appendChild(div);
@@ -43,6 +38,28 @@ function ensureHUD(): HTMLDivElement {
     document.body.appendChild(hud);
   }
   return hud;
+}
+
+function ensureControls(): HTMLDivElement {
+  let ctrls = document.getElementById("controls") as HTMLDivElement | null;
+  if (!ctrls) {
+    ctrls = document.createElement("div");
+    ctrls.id = "controls";
+    // 3x3 D-pad layout with spacers
+    ctrls.innerHTML = `
+      <div class="sp"></div>
+      <button data-dir="n" aria-label="North">↑</button>
+      <div class="sp"></div>
+      <button data-dir="w" aria-label="West">←</button>
+      <button data-dir="s" aria-label="South">↓</button>
+      <button data-dir="e" aria-label="East">→</button>
+      <div class="sp"></div>
+      <div class="sp"></div>
+      <div class="sp"></div>
+    `;
+    document.body.appendChild(ctrls);
+  }
+  return ctrls;
 }
 
 function renderHUD() {
@@ -67,23 +84,20 @@ function createPlayerMarker() {
     weight: 2,
   }).addTo(map);
 }
-
 function updatePlayerMarker() {
   playerMarker.setLatLng([player.lat, player.lng]);
 }
 
-/* -------------------- Grid Math -------------------- */
+/* -------------------- Grid Math (world-aligned) -------------------- */
 
 type CellId = { i: number; j: number };
 
 function toCellId(lat: number, lng: number): CellId {
   return { i: Math.floor(lat / CELL), j: Math.floor(lng / CELL) };
 }
-
 function cellCenter(i: number, j: number): [number, number] {
   return [(i + 0.5) * CELL, (j + 0.5) * CELL];
 }
-
 function visibleCellRange() {
   const b = map.getBounds();
   const iMin = Math.floor(b.getSouth() / CELL);
@@ -93,10 +107,20 @@ function visibleCellRange() {
   return { iMin, iMax, jMin, jMax };
 }
 
-/* -------------------- Deterministic Spawn -------------------- */
+// snap any lat/lng to the exact center of its grid cell
+function snapToCellCenter(
+  lat: number,
+  lng: number,
+): { lat: number; lng: number } {
+  const { i, j } = toCellId(lat, lng);
+  const [cLat, cLng] = cellCenter(i, j);
+  return { lat: cLat, lng: cLng };
+}
+
+/* -------------------- Deterministic Spawn (luck) -------------------- */
 
 function tokenAt(i: number, j: number): number {
-  const r = luck(`${i},${j}`);
+  const r = luck(`${i},${j}`); // stable [0,1)
   if (r < 0.15) return 2; // 15% chance
   if (r < 0.20) return 4; // 5% chance
   if (r < 0.22) return 8; // 2% chance
@@ -104,10 +128,9 @@ function tokenAt(i: number, j: number): number {
 }
 
 /* -------------------- Game State (Taken / Modified) -------------------- */
-/* We track cells the player has changed so draws reflect gameplay. */
 
-const takenCells = new Set<string>(); // cells emptied by pickups
-const modifiedCells = new Map<string, number>(); // cells whose value changed (e.g., merges)
+const takenCells = new Set<string>(); // emptied by pickups
+const modifiedCells = new Map<string, number>(); // merged values
 
 function cellKey(i: number, j: number) {
   return `${i},${j}`;
@@ -119,12 +142,11 @@ function getCellValue(i: number, j: number): number {
   if (takenCells.has(key)) return 0;
   return tokenAt(i, j);
 }
-
 function setCellValue(i: number, j: number, value: number) {
   const key = cellKey(i, j);
   if (value <= 0) {
     modifiedCells.delete(key);
-    takenCells.add(key); // mark as empty
+    takenCells.add(key);
   } else {
     takenCells.delete(key);
     modifiedCells.set(key, value);
@@ -136,7 +158,6 @@ function setCellValue(i: number, j: number, value: number) {
 function playerCellId(): CellId {
   return toCellId(player.lat, player.lng);
 }
-
 function isNearCell(i: number, j: number): boolean {
   const p = playerCellId();
   return Math.abs(i - p.i) <= INTERACT_STEPS &&
@@ -150,11 +171,11 @@ function onCellClick(i: number, j: number) {
 
   const current = getCellValue(i, j);
 
-  // If empty-handed and cell has a token → pick up
+  // empty-handed → pick up
   if (player.holding === null) {
     if (current > 0) {
       player.holding = current;
-      setCellValue(i, j, 0); // remove token from cell
+      setCellValue(i, j, 0);
       renderHUD();
       checkWin();
       drawGrid();
@@ -162,18 +183,15 @@ function onCellClick(i: number, j: number) {
     return;
   }
 
-  // If holding a token and the cell has equal value → merge to double in the cell
+  // equal merge → double in the cell
   if (current === player.holding && current > 0) {
     const doubled = current * 2;
-    setCellValue(i, j, doubled); // new value lives in the cell
-    player.holding = null; // hand is now empty
+    setCellValue(i, j, doubled);
+    player.holding = null;
     renderHUD();
     drawGrid();
-    // Note: win only triggers when holding >= WIN, so player must pick up the doubled token later
     return;
   }
-
-  // Otherwise, do nothing (strict D3.a: no placing into empty or different-valued cells)
 }
 
 /* -------------------- Rendering (Grid + Tokens) -------------------- */
@@ -230,6 +248,10 @@ function drawGrid() {
 function init() {
   const container = ensureMapContainer();
   hudEl = ensureHUD();
+  ensureControls();
+
+  // Snap start position to the *center* of its cell
+  player = { ...player, ...snapToCellCenter(player.lat, player.lng) };
 
   map = L.map(container, { zoomControl: true, preferCanvas: true }).setView(
     [player.lat, player.lng],
@@ -248,6 +270,19 @@ function init() {
   map.on("zoomend", drawGrid);
   map.on("moveend", drawGrid);
   map.on("resize", drawGrid);
+
+  // D-pad click wiring (move by cell steps)
+  document.getElementById("controls")?.addEventListener("click", (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t.tagName !== "BUTTON") return;
+    const dir = t.getAttribute("data-dir");
+    if (dir === "n") movePlayerCells(1, 0);
+    if (dir === "s") movePlayerCells(-1, 0);
+    if (dir === "w") movePlayerCells(0, -1);
+    if (dir === "e") movePlayerCells(0, 1);
+  });
+
+  // (optional convenience) click map to recenter on player
   map.on("click", () => map.setView([player.lat, player.lng]));
 }
 
@@ -257,50 +292,42 @@ if (document.readyState === "loading") {
   init();
 }
 
-/* -------------------- Dev Helper -------------------- */
+/* -------------------- Movement by Cell Indices -------------------- */
 
-type MovePlayerFn = (dLat?: number, dLng?: number) => void;
-(globalThis as typeof globalThis & { movePlayerBy?: MovePlayerFn })
-  .movePlayerBy = (
-    dLat = 0,
-    dLng = 0,
-  ) => {
-    player = { ...player, lat: player.lat + dLat, lng: player.lng + dLng };
-    updatePlayerMarker();
-    renderHUD();
-    map.setView([player.lat, player.lng]);
-    drawGrid();
-  };
+function movePlayerCells(dI = 0, dJ = 0) {
+  const { i, j } = toCellId(player.lat, player.lng);
+  const [nLat, nLng] = cellCenter(i + dI, j + dJ);
+  player = { ...player, lat: nLat, lng: nLng };
+  updatePlayerMarker();
+  renderHUD();
+  map.setView([player.lat, player.lng]);
+  drawGrid();
+}
 
-/* -------------------- Keyboard Controls -------------------- */
+// expose for console/debug
+type MoveByCellsFn = (dI?: number, dJ?: number) => void;
+(globalThis as typeof globalThis & { movePlayerCells?: MoveByCellsFn })
+  .movePlayerCells = movePlayerCells;
 
-// how far one key press moves the player (in degrees)
-/* -------------------- Keyboard Controls -------------------- */
-
-const STEP = CELL * 1; // one grid cell per key press
-
-// Define a typed reference to movePlayerBy on globalThis
-const moveBy = (globalThis as typeof globalThis & {
-  movePlayerBy?: (dLat?: number, dLng?: number) => void;
-}).movePlayerBy;
+/* -------------------- Keyboard Controls (cell-steps) -------------------- */
 
 globalThis.addEventListener("keydown", (e) => {
   switch (e.key) {
     case "ArrowUp":
     case "w":
-      moveBy?.(STEP, 0);
-      break;
+      movePlayerCells(1, 0);
+      break; // north (+i)
     case "ArrowDown":
     case "s":
-      moveBy?.(-STEP, 0);
-      break;
+      movePlayerCells(-1, 0);
+      break; // south
     case "ArrowLeft":
     case "a":
-      moveBy?.(0, -STEP);
-      break;
+      movePlayerCells(0, -1);
+      break; // west  (-j)
     case "ArrowRight":
     case "d":
-      moveBy?.(0, STEP);
-      break;
+      movePlayerCells(0, 1);
+      break; // east  (+j)
   }
 });

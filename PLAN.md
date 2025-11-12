@@ -37,7 +37,7 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 ### Steps D3.b
 
 - [x] keep grid anchored to a world coordinate system (Null Island origin)
-- [ ] add on-screen movement buttons (N/S/E/W) that move one cell per click
+- [x] add on-screen movement buttons (N/S/E/W) that move one cell per click
 - [ ] allow scrolling the map without moving the player
 - [ ] keep cells visible to the map edge (spawn/despawn on pan/zoom)
 - [ ] enforce nearby-only interaction (confirm + keep)
