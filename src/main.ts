@@ -281,9 +281,6 @@ function init() {
     if (dir === "w") movePlayerCells(0, -1);
     if (dir === "e") movePlayerCells(0, 1);
   });
-
-  // (optional convenience) click map to recenter on player
-  map.on("click", () => map.setView([player.lat, player.lng]));
 }
 
 if (document.readyState === "loading") {
