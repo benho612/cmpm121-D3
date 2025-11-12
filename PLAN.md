@@ -42,5 +42,5 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] keep cells visible to the map edge (spawn/despawn on pan/zoom)
 - [x] enforce nearby-only interaction (confirm + keep)
 - [x] make cells “memoryless” once they leave view (reset on view change)
-- [ ] raise crafting target and win threshold (WIN = 32)
+- [x] raise crafting target and win threshold (WIN = 32)
 - [ ] README and PLAN.md updates

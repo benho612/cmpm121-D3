@@ -8,7 +8,7 @@ import "./style.css";
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
 const CELL = 0.0001; // grid cell size in degrees (world-aligned)
 const INTERACT_STEPS = 3; // how many cells away counts as "near"
-const WIN = 16; // win threshold (holding >= WIN)
+const WIN = 32; // win threshold (holding >= WIN)
 
 /* -------------------- Player / HUD -------------------- */
 
