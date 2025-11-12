@@ -70,9 +70,23 @@ function renderHUD() {
   }) | Holding: ${player.holding ?? "—"}`;
 }
 
-function clearTransientState() {
-  takenCells.clear();
-  modifiedCells.clear();
+function cullTransientToVisible() {
+  if (!map) return;
+  const { iMin, iMax, jMin, jMax } = visibleCellRange();
+
+  // Build a quick membership test for “still on screen”
+  const isVisible = (key: string) => {
+    const [si, sj] = key.split(",").map(Number);
+    return si >= iMin && si < iMax && sj >= jMin && sj < jMax;
+  };
+
+  // Keep only items whose cells are still visible
+  for (const key of takenCells) {
+    if (!isVisible(key)) takenCells.delete(key);
+  }
+  for (const key of modifiedCells.keys()) {
+    if (!isVisible(key)) modifiedCells.delete(key);
+  }
 }
 
 function checkWin() {
@@ -205,6 +219,8 @@ let gridLayer: L.LayerGroup | null = null;
 let tokenLayer: L.LayerGroup | null = null;
 
 function drawGrid() {
+  cullTransientToVisible();
+
   if (!map) return;
 
   if (!gridLayer) gridLayer = L.layerGroup().addTo(map);
@@ -273,10 +289,6 @@ function init() {
 
   const repaint = () => drawGrid();
 
-  map.on("movestart", clearTransientState);
-  map.on("zoomstart", clearTransientState);
-  map.on("resizestart", clearTransientState);
-
   map.on("zoomend", repaint);
   map.on("moveend", repaint);
   map.on("resize", repaint);
@@ -327,26 +339,3 @@ function movePlayerCells(dI = 0, dJ = 0) {
 type MoveByCellsFn = (dI?: number, dJ?: number) => void;
 (globalThis as typeof globalThis & { movePlayerCells?: MoveByCellsFn })
   .movePlayerCells = movePlayerCells;
-
-/* -------------------- Keyboard Controls (cell-steps) -------------------- */
-
-globalThis.addEventListener("keydown", (e) => {
-  switch (e.key) {
-    case "ArrowUp":
-    case "w":
-      movePlayerCells(1, 0);
-      break; // north (+i)
-    case "ArrowDown":
-    case "s":
-      movePlayerCells(-1, 0);
-      break; // south
-    case "ArrowLeft":
-    case "a":
-      movePlayerCells(0, -1);
-      break; // west  (-j)
-    case "ArrowRight":
-    case "d":
-      movePlayerCells(0, 1);
-      break; // east  (+j)
-  }
-});
