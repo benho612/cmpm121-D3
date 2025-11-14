@@ -201,8 +201,6 @@ function onCellClick(i: number, j: number) {
     drawGrid();
     return;
   }
-
-  // otherwise: holding and cell has a different value → do nothing
 }
 
 /* -------------------- Rendering (Grid + Tokens) -------------------- */
