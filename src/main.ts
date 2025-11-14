@@ -175,7 +175,7 @@ function onCellClick(i: number, j: number) {
   if (player.holding === null) {
     if (current > 0) {
       player.holding = current;
-      setCellValue(i, j, 0);
+      setCellValue(i, j, 0); // remove token from cell
       renderHUD();
       checkWin();
       drawGrid();
@@ -183,15 +183,26 @@ function onCellClick(i: number, j: number) {
     return;
   }
 
-  // equal merge → double in the cell
-  if (current === player.holding && current > 0) {
-    const doubled = current * 2;
-    setCellValue(i, j, doubled);
-    player.holding = null;
+  // holding a token and cell is empty → place it
+  if (current === 0) {
+    setCellValue(i, j, player.holding); // drop token into the cell
+    player.holding = null; // hand is now empty
     renderHUD();
     drawGrid();
     return;
   }
+
+  // equal merge → double in the cell
+  if (current === player.holding && current > 0) {
+    const doubled = current * 2;
+    setCellValue(i, j, doubled); // new value lives in the cell
+    player.holding = null; // hand is now empty
+    renderHUD();
+    drawGrid();
+    return;
+  }
+
+  // otherwise: holding and cell has a different value → do nothing
 }
 
 /* -------------------- Rendering (Grid + Tokens) -------------------- */
