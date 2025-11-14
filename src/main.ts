@@ -70,25 +70,6 @@ function renderHUD() {
   }) | Holding: ${player.holding ?? "—"}`;
 }
 
-function cullTransientToVisible() {
-  if (!map) return;
-  const { iMin, iMax, jMin, jMax } = visibleCellRange();
-
-  // Build a quick membership test for “still on screen”
-  const isVisible = (key: string) => {
-    const [si, sj] = key.split(",").map(Number);
-    return si >= iMin && si < iMax && sj >= jMin && sj < jMax;
-  };
-
-  // Keep only items whose cells are still visible
-  for (const key of takenCells) {
-    if (!isVisible(key)) takenCells.delete(key);
-  }
-  for (const key of modifiedCells.keys()) {
-    if (!isVisible(key)) modifiedCells.delete(key);
-  }
-}
-
 function checkWin() {
   if (player.holding !== null && player.holding >= WIN) {
     alert(`You win! Holding ${player.holding}.`);
@@ -219,8 +200,6 @@ let gridLayer: L.LayerGroup | null = null;
 let tokenLayer: L.LayerGroup | null = null;
 
 function drawGrid() {
-  cullTransientToVisible();
-
   if (!map) return;
 
   if (!gridLayer) gridLayer = L.layerGroup().addTo(map);
@@ -339,3 +318,35 @@ function movePlayerCells(dI = 0, dJ = 0) {
 type MoveByCellsFn = (dI?: number, dJ?: number) => void;
 (globalThis as typeof globalThis & { movePlayerCells?: MoveByCellsFn })
   .movePlayerCells = movePlayerCells;
+
+/* -------------------- Keyboard Controls (cell-steps) -------------------- */
+
+globalThis.addEventListener("keydown", (e) => {
+  const k = e.key;
+  if (
+    k === "ArrowUp" ||
+    k === "ArrowDown" ||
+    k === "ArrowLeft" ||
+    k === "ArrowRight"
+  ) {
+    e.preventDefault();
+  }
+  switch (k) {
+    case "ArrowUp":
+    case "w":
+      movePlayerCells(1, 0);
+      break; // north (+i)
+    case "ArrowDown":
+    case "s":
+      movePlayerCells(-1, 0);
+      break; // south
+    case "ArrowLeft":
+    case "a":
+      movePlayerCells(0, -1);
+      break; // west  (-j)
+    case "ArrowRight":
+    case "d":
+      movePlayerCells(0, 1);
+      break; // east  (+j)
+  }
+});

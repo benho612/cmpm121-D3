@@ -49,4 +49,4 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 
 ### Steps D3.c
 
-- [ ] Make cells remember their modified state when off-screen while unmodified cells use no memory (Flyweight + Memento).
+- [x] Make cells remember their modified state when off-screen while unmodified cells use no memory (Flyweight + Memento).
