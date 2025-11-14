@@ -280,7 +280,6 @@ function init() {
       drawGrid();
     });
   };
-
   map.on("move", preview);
   map.on("zoom", preview);
 
