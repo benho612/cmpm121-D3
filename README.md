@@ -42,3 +42,9 @@ The prototype implements the **core mechanics** of the final game:
 - Interaction remains **nearby-only**, respecting distance limits.
 - **Memoryless cells**: world resets when panned/zoomed away (tokens respawn).
 - **Win threshold increased to 32** for higher crafting progression.
+
+## D3.c — Object Persistence
+
+- Removed memoryless behavior from D3.b.
+- Only modified cells are stored in memory (Flyweight pattern).
+- Unmodified cells use no memory and regenerate via deterministic spawn.
