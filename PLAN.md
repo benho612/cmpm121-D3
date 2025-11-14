@@ -44,3 +44,9 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] make cells “memoryless” once they leave view (reset on view change)
 - [x] raise crafting target and win threshold (WIN = 32)
 - [x] README and PLAN.md updates
+
+## D3.c — Object Persistence
+
+### Steps D3.c
+
+- [ ] Make cells remember their modified state when off-screen while unmodified cells use no memory (Flyweight + Memento).
