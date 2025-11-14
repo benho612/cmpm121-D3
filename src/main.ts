@@ -255,7 +255,7 @@ function init() {
 
   map = L.map(container, { zoomControl: true, preferCanvas: true }).setView(
     [player.lat, player.lng],
-    18,
+    19,
   );
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
