@@ -48,3 +48,11 @@ The prototype implements the **core mechanics** of the final game:
 - Removed memoryless behavior from D3.b.
 - Only modified cells are stored in memory (Flyweight pattern).
 - Unmodified cells use no memory and regenerate via deterministic spawn.
+
+## D3.d - Gameplay Across Real-World Space & Time
+
+- Added GPS-based movement using navigator.geolocation.watchPosition. The player moves across the grid by physically moving in the real world.
+- Implemented the MovementController interface (Facade pattern) so both movement systems
+- Added an on-screen toggle allowing players to switch between Buttons and GPS at any time.
+- The entire game state (modified cells, player position, inventory, movement mode) is now saved in localStorage and restored automatically on page reload.
+- Added a New Game button to clear stored data and reset the world.
