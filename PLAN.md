@@ -50,3 +50,12 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 ### Steps D3.c
 
 - [x] Make cells remember their modified state when off-screen while unmodified cells use no memory (Flyweight + Memento).
+
+## D3.d — Gameplay Across Real-world Space and Time
+
+### Step D3.d
+
+- [ ] Add a movement interface (e.g. `MovementController`) and refactor existing button movement to use it (Facade pattern).
+- [ ] Implement a geolocation-based movement controller that moves the player based on browser geolocation API.
+- [ ] Use localStorage to save and restore game state across page loads (player + modified cells).
+- [ ] Provide a way to switch between button-based and geolocation-based movement and to start a new game (clear saved state).
