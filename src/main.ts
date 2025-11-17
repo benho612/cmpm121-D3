@@ -81,7 +81,7 @@ class ButtonMovementController implements MovementController {
 // current active movement facade (we'll swap this in D3.d)
 let movement: MovementController | null = null;
 type MovementMode = "buttons" | "gps";
-let _movementMode: MovementMode = "buttons"; // default
+let movementMode: MovementMode = "buttons"; // default
 
 /* -------------------- Geolocation Movement Controller -------------------- */
 
@@ -167,7 +167,7 @@ class GeolocationMovementController implements MovementController {
 }
 
 function setMovementMode(mode: MovementMode) {
-  _movementMode = mode;
+  movementMode = mode;
 
   // detach old controller if any
   if (movement) {
@@ -183,6 +183,7 @@ function setMovementMode(mode: MovementMode) {
 
   movement.attach();
   updateModeToggleUI(mode);
+  saveSnapshot(); // persist pickup
 }
 
 /* -------------------- Player / HUD -------------------- */
@@ -245,6 +246,7 @@ function ensureModeToggle(): HTMLDivElement {
     bar.innerHTML = `
       <button data-mode="buttons">Buttons</button>
       <button data-mode="gps">GPS</button>
+      <button data-action="reset">New Game</button>
     `;
     document.body.appendChild(bar);
   }
@@ -334,6 +336,73 @@ function tokenAt(i: number, j: number): number {
 const takenCells = new Set<string>(); // emptied by pickups
 const modifiedCells = new Map<string, number>(); // merged values
 
+type Snapshot = {
+  taken: string[];
+  modified: [string, number][];
+  player: Player;
+  mode: MovementMode;
+};
+
+const STORAGE_KEY = "cmpm121-d3-world-of-bits";
+
+function saveSnapshot() {
+  const snap: Snapshot = {
+    taken: Array.from(takenCells),
+    modified: Array.from(modifiedCells.entries()),
+    player,
+    mode: movementMode,
+  };
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+  } catch (err) {
+    console.warn("saveSnapshot failed:", err);
+  }
+}
+
+function loadSnapshot(): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+
+    const snap = JSON.parse(raw) as Snapshot;
+
+    takenCells.clear();
+    modifiedCells.clear();
+    for (const key of snap.taken) takenCells.add(key);
+    for (const [k, v] of snap.modified) modifiedCells.set(k, v);
+
+    player = { ...player, ...snap.player };
+    movementMode = snap.mode ?? "buttons";
+
+    return true;
+  } catch (err) {
+    console.warn("loadSnapshot failed:", err);
+    return false;
+  }
+}
+
+function resetGame() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (err) {
+    console.warn("resetGame failed:", err);
+  }
+
+  // Also reset in-memory state so it works even if reload is cached
+  takenCells.clear();
+  modifiedCells.clear();
+  player = { ...classroom, holding: null };
+  movementMode = "buttons";
+
+  // Re-center and redraw
+  player = { ...player, ...snapToCellCenter(player.lat, player.lng) };
+  updatePlayerMarker();
+  renderHUD();
+  map.setView([player.lat, player.lng]);
+  drawGrid();
+}
+
 function cellKey(i: number, j: number) {
   return `${i},${j}`;
 }
@@ -381,6 +450,7 @@ function onCellClick(i: number, j: number) {
       renderHUD();
       checkWin();
       drawGrid();
+      saveSnapshot(); // persist pickup
     }
     return;
   }
@@ -391,6 +461,7 @@ function onCellClick(i: number, j: number) {
     player.holding = null; // hand is now empty
     renderHUD();
     drawGrid();
+    saveSnapshot(); // persist pickup
     return;
   }
 
@@ -401,6 +472,7 @@ function onCellClick(i: number, j: number) {
     player.holding = null; // hand is now empty
     renderHUD();
     drawGrid();
+    saveSnapshot(); // persist pickup
     return;
   }
 }
@@ -463,7 +535,10 @@ function init() {
   const modeBar = ensureModeToggle();
 
   // Snap start position to the *center* of its cell
-  player = { ...player, ...snapToCellCenter(player.lat, player.lng) };
+  const restored = loadSnapshot();
+  if (!restored) {
+    player = { ...player, ...snapToCellCenter(player.lat, player.lng) };
+  }
 
   map = L.map(container, { zoomControl: true, preferCanvas: true }).setView(
     [player.lat, player.lng],
@@ -499,13 +574,23 @@ function init() {
   modeBar.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
     if (t.tagName !== "BUTTON") return;
+
     const modeAttr = t.getAttribute("data-mode") as MovementMode | null;
-    if (!modeAttr) return;
-    setMovementMode(modeAttr);
+    const action = t.getAttribute("data-action");
+
+    if (modeAttr) {
+      setMovementMode(modeAttr);
+    } else if (action === "reset") {
+      resetGame();
+    }
+  });
+
+  globalThis.addEventListener("beforeunload", () => {
+    saveSnapshot();
   });
 
   // Default to button-based movement on startup
-  setMovementMode("buttons");
+  setMovementMode(movementMode);
 }
 
 /* -------------------- Movement by Cell Indices -------------------- */
@@ -518,6 +603,7 @@ function movePlayerCells(dI = 0, dJ = 0) {
   renderHUD();
   map.setView([player.lat, player.lng]);
   drawGrid();
+  saveSnapshot(); // persist pickup
 }
 
 // expose for console/debug

@@ -58,4 +58,4 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 - [x] Add a movement interface (e.g. `MovementController`) and refactor existing button movement to use it (Facade pattern).
 - [x] Implement a geolocation-based movement controller that moves the player based on browser geolocation API.
 - [x] Provide a way to switch between button-based and geolocation-based movement and to start a new game (clear saved state).
-- [ ] Use localStorage to save and restore game state across page loads (player + modified cells).
+- [x] Use localStorage to save and restore game state across page loads (player + modified cells).
