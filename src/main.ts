@@ -10,6 +10,77 @@ const CELL = 0.0001; // grid cell size in degrees (world-aligned)
 const INTERACT_STEPS = 3; // how many cells away counts as "near"
 const WIN = 32; // win threshold (holding >= WIN)
 
+/* -------------------- Movement Controllers (Facade) -------------------- */
+
+type MovementController = {
+  attach(): void; // hook up event listeners
+  detach(): void; // remove event listeners
+};
+
+// Button + keyboard movement implementation
+class ButtonMovementController implements MovementController {
+  private controlsEl: HTMLElement | null = null;
+
+  constructor() {}
+
+  private handleKeyDown = (e: KeyboardEvent) => {
+    const k = e.key;
+    if (
+      k === "ArrowUp" ||
+      k === "ArrowDown" ||
+      k === "ArrowLeft" ||
+      k === "ArrowRight"
+    ) {
+      e.preventDefault();
+    }
+    switch (k) {
+      case "ArrowUp":
+      case "w":
+        movePlayerCells(1, 0);
+        break; // north (+i)
+      case "ArrowDown":
+      case "s":
+        movePlayerCells(-1, 0);
+        break; // south
+      case "ArrowLeft":
+      case "a":
+        movePlayerCells(0, -1);
+        break; // west  (-j)
+      case "ArrowRight":
+      case "d":
+        movePlayerCells(0, 1);
+        break; // east  (+j)
+    }
+  };
+
+  private handleClick = (ev: MouseEvent) => {
+    const t = ev.target as HTMLElement;
+    if (t.tagName !== "BUTTON") return;
+    const dir = t.getAttribute("data-dir");
+    if (dir === "n") movePlayerCells(1, 0);
+    if (dir === "s") movePlayerCells(-1, 0);
+    if (dir === "w") movePlayerCells(0, -1);
+    if (dir === "e") movePlayerCells(0, 1);
+  };
+
+  attach() {
+    // ensure controls exist and remember the element so we can detach later
+    this.controlsEl = ensureControls();
+    this.controlsEl.addEventListener("click", this.handleClick);
+    globalThis.addEventListener("keydown", this.handleKeyDown);
+  }
+
+  detach() {
+    if (this.controlsEl) {
+      this.controlsEl.removeEventListener("click", this.handleClick);
+    }
+    globalThis.removeEventListener("keydown", this.handleKeyDown);
+  }
+}
+
+// current active movement facade (we'll swap this in D3.d)
+let movement: MovementController | null = null;
+
 /* -------------------- Player / HUD -------------------- */
 
 type Player = { lat: number; lng: number; holding: number | null };
@@ -292,22 +363,9 @@ function init() {
   map.on("move", preview);
   map.on("zoom", preview);
 
-  // D-pad click wiring (move by cell steps)
-  document.getElementById("controls")?.addEventListener("click", (ev) => {
-    const t = ev.target as HTMLElement;
-    if (t.tagName !== "BUTTON") return;
-    const dir = t.getAttribute("data-dir");
-    if (dir === "n") movePlayerCells(1, 0);
-    if (dir === "s") movePlayerCells(-1, 0);
-    if (dir === "w") movePlayerCells(0, -1);
-    if (dir === "e") movePlayerCells(0, 1);
-  });
-}
-
-if (document.readyState === "loading") {
-  globalThis.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
+  // Use button-based movement controller (Facade)
+  movement = new ButtonMovementController();
+  movement.attach();
 }
 
 /* -------------------- Movement by Cell Indices -------------------- */
@@ -327,34 +385,5 @@ type MoveByCellsFn = (dI?: number, dJ?: number) => void;
 (globalThis as typeof globalThis & { movePlayerCells?: MoveByCellsFn })
   .movePlayerCells = movePlayerCells;
 
-/* -------------------- Keyboard Controls (cell-steps) -------------------- */
-
-globalThis.addEventListener("keydown", (e) => {
-  const k = e.key;
-  if (
-    k === "ArrowUp" ||
-    k === "ArrowDown" ||
-    k === "ArrowLeft" ||
-    k === "ArrowRight"
-  ) {
-    e.preventDefault();
-  }
-  switch (k) {
-    case "ArrowUp":
-    case "w":
-      movePlayerCells(1, 0);
-      break; // north (+i)
-    case "ArrowDown":
-    case "s":
-      movePlayerCells(-1, 0);
-      break; // south
-    case "ArrowLeft":
-    case "a":
-      movePlayerCells(0, -1);
-      break; // west  (-j)
-    case "ArrowRight":
-    case "d":
-      movePlayerCells(0, 1);
-      break; // east  (+j)
-  }
-});
+/* -------------------- Start the Game! -------------------- */
+init();
