@@ -613,4 +613,5 @@ type MoveByCellsFn = (dI?: number, dJ?: number) => void;
   .movePlayerCells = movePlayerCells;
 
 /* -------------------- Start the Game! -------------------- */
+
 init();
