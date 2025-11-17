@@ -81,6 +81,66 @@ class ButtonMovementController implements MovementController {
 // current active movement facade (we'll swap this in D3.d)
 let movement: MovementController | null = null;
 
+/* -------------------- Geolocation Movement Controller -------------------- */
+
+class _GeolocationMovementController implements MovementController {
+  private watchId: number | null = null;
+  private lastLat: number | null = null;
+  private lastLng: number | null = null;
+
+  attach() {
+    if (!("geolocation" in navigator)) {
+      alert("Geolocation is not supported on this device.");
+      return;
+    }
+
+    this.watchId = navigator.geolocation.watchPosition(
+      (pos) => this.handlePosition(pos),
+      (err) => console.warn("Geolocation error:", err),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000,
+      },
+    );
+  }
+
+  detach() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+  }
+
+  private handlePosition(pos: GeolocationPosition) {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    // first reading → set anchor & do nothing
+    if (this.lastLat === null || this.lastLng === null) {
+      this.lastLat = lat;
+      this.lastLng = lng;
+      return;
+    }
+
+    // compute movement relative to last known GPS position
+    const dLat = lat - this.lastLat;
+    const dLng = lng - this.lastLng;
+
+    // convert real movement into grid steps
+    const stepI = Math.round(dLat / CELL);
+    const stepJ = Math.round(dLng / CELL);
+
+    if (stepI !== 0 || stepJ !== 0) {
+      movePlayerCells(stepI, stepJ);
+
+      // update anchor
+      this.lastLat = lat;
+      this.lastLng = lng;
+    }
+  }
+}
+
 /* -------------------- Player / HUD -------------------- */
 
 type Player = { lat: number; lng: number; holding: number | null };

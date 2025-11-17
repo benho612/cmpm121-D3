@@ -56,6 +56,6 @@ Key technical challenge: assembling a map-based UI using Leaflet.
 ### Step D3.d
 
 - [x] Add a movement interface (e.g. `MovementController`) and refactor existing button movement to use it (Facade pattern).
-- [ ] Implement a geolocation-based movement controller that moves the player based on browser geolocation API.
+- [x] Implement a geolocation-based movement controller that moves the player based on browser geolocation API.
 - [ ] Use localStorage to save and restore game state across page loads (player + modified cells).
 - [ ] Provide a way to switch between button-based and geolocation-based movement and to start a new game (clear saved state).
