@@ -183,7 +183,7 @@ function setMovementMode(mode: MovementMode) {
 
   movement.attach();
   updateModeToggleUI(mode);
-  saveSnapshot(); // persist pickup
+  saveSnapshot(); // persist chosen movement mode and player state
 }
 
 /* -------------------- Player / HUD -------------------- */
@@ -401,6 +401,8 @@ function resetGame() {
   renderHUD();
   map.setView([player.lat, player.lng]);
   drawGrid();
+
+  setMovementMode("buttons");
 }
 
 function cellKey(i: number, j: number) {
@@ -531,7 +533,6 @@ function drawGrid() {
 function init() {
   const container = ensureMapContainer();
   hudEl = ensureHUD();
-  ensureControls();
   const modeBar = ensureModeToggle();
 
   // Snap start position to the *center* of its cell
