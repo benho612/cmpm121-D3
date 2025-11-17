@@ -80,10 +80,12 @@ class ButtonMovementController implements MovementController {
 
 // current active movement facade (we'll swap this in D3.d)
 let movement: MovementController | null = null;
+type MovementMode = "buttons" | "gps";
+let _movementMode: MovementMode = "buttons"; // default
 
 /* -------------------- Geolocation Movement Controller -------------------- */
 
-class _GeolocationMovementController implements MovementController {
+class GeolocationMovementController implements MovementController {
   private watchId: number | null = null;
   private lastLat: number | null = null;
   private lastLng: number | null = null;
@@ -116,29 +118,71 @@ class _GeolocationMovementController implements MovementController {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
-    // first reading → set anchor & do nothing
+    console.log("[GPS] Raw coords:", { lat, lng });
+
+    // First GPS reading: teleport player to real-world location
     if (this.lastLat === null || this.lastLng === null) {
       this.lastLat = lat;
       this.lastLng = lng;
+
+      const snapped = snapToCellCenter(lat, lng);
+      console.log(
+        "[GPS] First fix → teleporting player to snapped cell:",
+        snapped,
+      );
+
+      player = { ...player, ...snapped };
+      updatePlayerMarker();
+      renderHUD();
+      map.setView([player.lat, player.lng]);
+      drawGrid();
       return;
     }
 
-    // compute movement relative to last known GPS position
+    // Compute deltas
     const dLat = lat - this.lastLat;
     const dLng = lng - this.lastLng;
 
-    // convert real movement into grid steps
+    console.log("[GPS] Δlat/Δlng:", { dLat, dLng });
+
+    // Convert lat/lng delta into grid steps
     const stepI = Math.round(dLat / CELL);
     const stepJ = Math.round(dLng / CELL);
 
+    console.log("[GPS] Grid steps:", { stepI, stepJ });
+
+    // Apply movement if we crossed a cell boundary
     if (stepI !== 0 || stepJ !== 0) {
       movePlayerCells(stepI, stepJ);
 
-      // update anchor
+      console.log("[GPS] Player moved to:", {
+        lat: player.lat,
+        lng: player.lng,
+      });
+
       this.lastLat = lat;
       this.lastLng = lng;
     }
   }
+}
+
+function setMovementMode(mode: MovementMode) {
+  _movementMode = mode;
+
+  // detach old controller if any
+  if (movement) {
+    movement.detach();
+  }
+
+  // create new controller based on mode
+  if (mode === "gps") {
+    movement = new GeolocationMovementController();
+  } else {
+    movement = new ButtonMovementController();
+  }
+
+  movement.attach();
+  updateModeToggleUI(mode);
 }
 
 /* -------------------- Player / HUD -------------------- */
@@ -191,6 +235,33 @@ function ensureControls(): HTMLDivElement {
     document.body.appendChild(ctrls);
   }
   return ctrls;
+}
+
+function ensureModeToggle(): HTMLDivElement {
+  let bar = document.getElementById("mode-toggle") as HTMLDivElement | null;
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "mode-toggle";
+    bar.innerHTML = `
+      <button data-mode="buttons">Buttons</button>
+      <button data-mode="gps">GPS</button>
+    `;
+    document.body.appendChild(bar);
+  }
+  return bar;
+}
+
+function updateModeToggleUI(mode: MovementMode) {
+  const bar = document.getElementById("mode-toggle");
+  if (!bar) return;
+  bar.querySelectorAll("button").forEach((btn) => {
+    const m = btn.getAttribute("data-mode");
+    if (m === mode) {
+      btn.classList.add("active-mode");
+    } else {
+      btn.classList.remove("active-mode");
+    }
+  });
 }
 
 function renderHUD() {
@@ -389,6 +460,7 @@ function init() {
   const container = ensureMapContainer();
   hudEl = ensureHUD();
   ensureControls();
+  const modeBar = ensureModeToggle();
 
   // Snap start position to the *center* of its cell
   player = { ...player, ...snapToCellCenter(player.lat, player.lng) };
@@ -423,9 +495,17 @@ function init() {
   map.on("move", preview);
   map.on("zoom", preview);
 
-  // Use button-based movement controller (Facade)
-  movement = new ButtonMovementController();
-  movement.attach();
+  // Attach click handler for toggle bar
+  modeBar.addEventListener("click", (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t.tagName !== "BUTTON") return;
+    const modeAttr = t.getAttribute("data-mode") as MovementMode | null;
+    if (!modeAttr) return;
+    setMovementMode(modeAttr);
+  });
+
+  // Default to button-based movement on startup
+  setMovementMode("buttons");
 }
 
 /* -------------------- Movement by Cell Indices -------------------- */

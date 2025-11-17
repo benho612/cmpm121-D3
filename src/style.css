@@ -69,3 +69,29 @@ html, body {
 #controls button:hover {
   filter: brightness(0.95);
 }
+
+/* Movement mode toggle bar */
+#mode-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px; /* moved to top-right */
+  left: auto; /* make sure left isn't used */
+  display: flex;
+  gap: 6px;
+  z-index: 1200;
+}
+
+#mode-toggle button {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#mode-toggle button.active-mode {
+  border-color: #2a7a5e;
+  background: #e0f4ec;
+  font-weight: 600;
+}
