@@ -10,6 +10,44 @@ const CELL = 0.0001; // grid cell size in degrees (world-aligned)
 const INTERACT_STEPS = 3; // how many cells away counts as "near"
 const WIN = 32; // win threshold (holding >= WIN)
 
+/* ----------------------------------------------------
+   FLYWEIGHT INTRINSIC GRID
+   ----------------------------------------------------
+   - A single large TypedArray holds *all* intrinsic values.
+   - All cells share this underlying storage (Flyweight).
+   - Only modified/taken cells store EXTRINSIC state.
+   ---------------------------------------------------- */
+
+const GRID_I = 5000;
+const GRID_J = 5000;
+
+// Single shared intrinsic storage
+const intrinsicValues = new Uint8Array(GRID_I * GRID_J);
+
+// Compute index into the big array
+function idx(i: number, j: number): number {
+  if (i < 0 || j < 0 || i >= GRID_I || j >= GRID_J) return 0;
+  return i * GRID_J + j;
+}
+
+// Initialize intrinsic grid once
+function initIntrinsicValues() {
+  for (let i = 0; i < GRID_I; i++) {
+    for (let j = 0; j < GRID_J; j++) {
+      const r = luck(`${i},${j}`);
+      if (r < 0.15) intrinsicValues[idx(i, j)] = 2;
+      else if (r < 0.20) intrinsicValues[idx(i, j)] = 4;
+      else if (r < 0.22) intrinsicValues[idx(i, j)] = 8;
+      else intrinsicValues[idx(i, j)] = 0;
+    }
+  }
+}
+
+// Flyweight accessor
+function getIntrinsicValue(i: number, j: number): number {
+  return intrinsicValues[idx(i, j)];
+}
+
 /* -------------------- Movement Controllers (Facade) -------------------- */
 
 type MovementController = {
@@ -323,12 +361,18 @@ function snapToCellCenter(
 
 /* -------------------- Deterministic Spawn (luck) -------------------- */
 
+// tokenAt(i,j) now uses Flyweight intrinsic + Memento overrides
 function tokenAt(i: number, j: number): number {
-  const r = luck(`${i},${j}`); // stable [0,1)
-  if (r < 0.15) return 2; // 15% chance
-  if (r < 0.20) return 4; // 5% chance
-  if (r < 0.22) return 8; // 2% chance
-  return 0;
+  const key = cellKey(i, j);
+
+  // Memento override (modified)
+  if (modifiedCells.has(key)) return modifiedCells.get(key)!;
+
+  // Memento override (taken)
+  if (takenCells.has(key)) return 0;
+
+  // Flyweight intrinsic value
+  return getIntrinsicValue(i, j);
 }
 
 /* -------------------- Game State (Taken / Modified) -------------------- */
@@ -345,6 +389,14 @@ type Snapshot = {
 
 const STORAGE_KEY = "cmpm121-d3-world-of-bits";
 
+/* ----------------------------------------------------
+   MEMENTO PERSISTENCE ACROSS PAGE LOADS
+   ----------------------------------------------------
+   We serialize the Memento state (modifiedCells + takenCells)
+   into localStorage and restore it on reload.
+
+   This lets the world continue exactly where the player left off.
+   ---------------------------------------------------- */
 function saveSnapshot() {
   const snap: Snapshot = {
     taken: Array.from(takenCells),
@@ -531,6 +583,7 @@ function drawGrid() {
 /* -------------------- Init -------------------- */
 
 function init() {
+  initIntrinsicValues();
   const container = ensureMapContainer();
   hudEl = ensureHUD();
   const modeBar = ensureModeToggle();
