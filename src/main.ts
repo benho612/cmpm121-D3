@@ -8,7 +8,7 @@ import "./style.css";
 const classroom = { lat: 36.99803803339612, lng: -122.05670161815607 };
 const CELL = 0.0001; // grid cell size in degrees (world-aligned)
 const INTERACT_STEPS = 3; // how many cells away counts as "near"
-const WIN = 32; // win threshold (holding >= WIN)
+const WIN = 64; // win threshold (holding >= WIN)
 
 /* ----------------------------------------------------
    FLYWEIGHT INTRINSIC GRID
@@ -18,34 +18,55 @@ const WIN = 32; // win threshold (holding >= WIN)
    - Only modified/taken cells store EXTRINSIC state.
    ---------------------------------------------------- */
 
-const GRID_I = 5000;
-const GRID_J = 5000;
+const GRID_I = 2500;
+const GRID_J = 2500;
+
+// Sentinel meaning "not yet computed"
+const UNINITIALIZED = 255;
 
 // Single shared intrinsic storage
 const intrinsicValues = new Uint8Array(GRID_I * GRID_J);
+intrinsicValues.fill(UNINITIALIZED);
 
-// Compute index into the big array
+// Wrap any index into [0, size)
+function wrapIndex(k: number, size: number): number {
+  let r = k % size;
+  if (r < 0) r += size;
+  return r;
+}
+
+// Compute index into the big array (world wraps)
 function idx(i: number, j: number): number {
-  if (i < 0 || j < 0 || i >= GRID_I || j >= GRID_J) return 0;
-  return i * GRID_J + j;
+  const ii = wrapIndex(i, GRID_I);
+  const jj = wrapIndex(j, GRID_J);
+  return ii * GRID_J + jj;
 }
 
-// Initialize intrinsic grid once
-function initIntrinsicValues() {
-  for (let i = 0; i < GRID_I; i++) {
-    for (let j = 0; j < GRID_J; j++) {
-      const r = luck(`${i},${j}`);
-      if (r < 0.15) intrinsicValues[idx(i, j)] = 2;
-      else if (r < 0.20) intrinsicValues[idx(i, j)] = 4;
-      else if (r < 0.22) intrinsicValues[idx(i, j)] = 8;
-      else intrinsicValues[idx(i, j)] = 0;
-    }
-  }
+// Deterministically compute an intrinsic token value
+// using luck() with a 0 / 2 / 4 / 8 / 16 distribution.
+function computeIntrinsicValue(i: number, j: number): number {
+  const r = luck(`${i},${j}`); // stable [0,1)
+
+  // Tune these thresholds to taste:
+  if (r < 0.55) return 0; // 55% empty
+  if (r < 0.80) return 2; // 25% 2s
+  if (r < 0.93) return 4; // 13% 4s
+  if (r < 0.985) return 8; // 5.5% 8s
+  return 16; // ~1.5% 16s
 }
 
-// Flyweight accessor
+// Flyweight accessor: only compute once per cell
 function getIntrinsicValue(i: number, j: number): number {
-  return intrinsicValues[idx(i, j)];
+  const k = idx(i, j);
+  const stored = intrinsicValues[k];
+
+  if (stored !== UNINITIALIZED) {
+    return stored;
+  }
+
+  const value = computeIntrinsicValue(i, j);
+  intrinsicValues[k] = value;
+  return value;
 }
 
 /* -------------------- Movement Controllers (Facade) -------------------- */
@@ -365,13 +386,11 @@ function snapToCellCenter(
 function tokenAt(i: number, j: number): number {
   const key = cellKey(i, j);
 
-  // Memento override (modified)
+  // Memento overrides (gameplay changes)
   if (modifiedCells.has(key)) return modifiedCells.get(key)!;
-
-  // Memento override (taken)
   if (takenCells.has(key)) return 0;
 
-  // Flyweight intrinsic value
+  // Flyweight intrinsic value (shared TypedArray)
   return getIntrinsicValue(i, j);
 }
 
@@ -462,11 +481,9 @@ function cellKey(i: number, j: number) {
 }
 
 function getCellValue(i: number, j: number): number {
-  const key = cellKey(i, j);
-  if (modifiedCells.has(key)) return modifiedCells.get(key)!;
-  if (takenCells.has(key)) return 0;
   return tokenAt(i, j);
 }
+
 function setCellValue(i: number, j: number, value: number) {
   const key = cellKey(i, j);
   if (value <= 0) {
@@ -583,7 +600,6 @@ function drawGrid() {
 /* -------------------- Init -------------------- */
 
 function init() {
-  initIntrinsicValues();
   const container = ensureMapContainer();
   hudEl = ensureHUD();
   const modeBar = ensureModeToggle();
